@@ -6,8 +6,8 @@ from grid import Grid
 from core.snake_planner import SnakePlanner
 from gui.pygame_renderer import PygameRenderer
 
-GRID_HEIGHT = 25
-GRID_WIDTH = 30
+GRID_HEIGHT = 5
+GRID_WIDTH = 5
 
 class SnakeGame:
     def __init__(self):
@@ -21,7 +21,7 @@ class SnakeGame:
     def step(self):
         path = self.planner.find_safe_path(self.snake, self.apple.position)
         if not path:
-            print("⚠ No path found, game over")
+            print("No path found, game over")
             self.alive = False
             return
 
@@ -41,4 +41,4 @@ class SnakeGame:
                 self.step()
 
             self.renderer.render(self.snake, self.apple)
-            time.sleep(0.05)
+            time.sleep(0.001)
