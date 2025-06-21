@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class Position:
     x: int
     y: int
