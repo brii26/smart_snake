@@ -6,16 +6,17 @@ from grid import Grid
 from core.snake_planner import SnakePlanner
 from gui.pygame_renderer import PygameRenderer
 
-GRID_SIZE = 15
+GRID_HEIGHT = 25
+GRID_WIDTH = 30
 
 class SnakeGame:
     def __init__(self):
-        self.grid = Grid(GRID_SIZE, GRID_SIZE)
+        self.grid = Grid(GRID_HEIGHT, GRID_WIDTH)
         self.snake = Snake(self.grid.center_position())
         self.apple = Apple(self.grid.random_empty_position(self.snake))
         self.planner = SnakePlanner(self.grid)
         self.alive = True
-        self.renderer = PygameRenderer(self.grid.width, self.grid.height)
+        self.renderer = PygameRenderer(GRID_WIDTH, GRID_HEIGHT)
 
     def step(self):
         path = self.planner.find_safe_path(self.snake, self.apple.position)
@@ -31,27 +32,13 @@ class SnakeGame:
             self.snake.grow()
             self.apple = Apple(self.grid.random_empty_position(self.snake))
 
-
-
     def run(self):
-        while self.alive:
+        while True:
             if not self.renderer.handle_events():
                 break
-            self.step()
-            self.renderer.render(self.snake, self.apple)
-            time.sleep(0.1)
 
-    def print_state(self):
-        print("\033[H\033[J", end="")  # clear terminal
-        for y in range(self.grid.height):
-            for x in range(self.grid.width):
-                pos = Position(x, y)
-                if pos == self.snake.head:
-                    print("H", end=" ")
-                elif pos in self.snake.body:
-                    print("o", end=" ")
-                elif pos == self.apple.position:
-                    print("A", end=" ")
-                else:
-                    print(".", end=" ")
-            print()
+            if self.renderer.simulation_started and self.alive:
+                self.step()
+
+            self.renderer.render(self.snake, self.apple)
+            time.sleep(0.05)
