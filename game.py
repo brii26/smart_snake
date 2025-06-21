@@ -18,16 +18,19 @@ class SnakeGame:
         self.renderer = PygameRenderer(self.grid.width, self.grid.height)
 
     def step(self):
-        print("Snake head:", self.snake.head)
-        print("Apple at:", self.apple.position)
-        
         path = self.planner.find_safe_path(self.snake, self.apple.position)
         if not path:
             print("⚠ No path found, game over")
             self.alive = False
             return
 
-        print("Next move:", path[0])
+        next_move = path[0]        
+        self.snake.move_towards(next_move)
+
+        if self.snake.head == self.apple.position:
+            self.snake.grow()
+            self.apple = Apple(self.grid.random_empty_position(self.snake))
+
 
 
     def run(self):
