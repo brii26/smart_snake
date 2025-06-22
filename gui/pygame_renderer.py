@@ -43,22 +43,69 @@ class PygameRenderer:
         center_y = WINDOW_HEIGHT // 2 - button_height // 2
         self.button_rect = pygame.Rect(center_x, center_y, button_width, button_height)
 
+        # Load image assets
         try:
             self.apple_img = pygame.image.load("assets/apple.png").convert_alpha()
             self.apple_img = pygame.transform.scale(self.apple_img, (self.cell_size, self.cell_size))
+
+            self.snake_body_img = pygame.image.load("assets/snake_body.png").convert_alpha()
+            self.snake_body_img = pygame.transform.scale(self.snake_body_img, (self.cell_size, self.cell_size))
+
+            self.snake_head_img = pygame.image.load("assets/snake_head.png").convert_alpha()
+            self.snake_head_img = pygame.transform.scale(self.snake_head_img, (self.cell_size, self.cell_size))
         except:
             self.apple_img = None
+            self.snake_body_img = None
+            self.snake_head_img = None
+
+
 
     def render(self, snake, apple):
         self.window_surface.fill(BG_COLOR)
+        # Draw outer border around entire grid
+        outer_border = pygame.Rect(
+            self.grid_offset_x,
+            self.grid_offset_y,
+            self.grid_width,
+            self.grid_height
+        )
+        pygame.draw.rect(self.window_surface, (255, 255, 255), outer_border, width=3)
+
+
 
         # Draw apple
         self._draw_apple(apple.position)
 
-        # Draw snake
+        # Draw snake body (excluding head)
         for segment in snake.body[1:]:
-            self._draw_cell(segment, SNAKE_COLOR)
-        self._draw_cell(snake.head, HEAD_COLOR)
+            if self.snake_body_img:
+                self._draw_cell(segment, image=self.snake_body_img)
+            else:
+                self._draw_cell(segment, color=SNAKE_COLOR, outline=True)
+
+        # Draw snake head
+        if self.snake_head_img:
+            if len(snake.body) > 1:
+                dx = snake.head.x - snake.body[1].x
+                dy = snake.head.y - snake.body[1].y
+
+                if dx == 1 and dy == 0:
+                    angle = 270   # Right
+                elif dx == -1 and dy == 0:
+                    angle = 90    # Left
+                elif dx == 0 and dy == -1:
+                    angle = 0     # Up
+                elif dx == 0 and dy == 1:
+                    angle = 180   # Down
+                else:
+                    angle = 0     # Fallback
+            else:
+                angle = 0  # default if only head
+
+            rotated_head = pygame.transform.rotate(self.snake_head_img, angle)
+            self._draw_cell(snake.head, image=rotated_head)
+        else:
+            self._draw_cell(snake.head, color=HEAD_COLOR)
 
         # Button (only before start)
         if not self.simulation_started:
@@ -67,14 +114,20 @@ class PygameRenderer:
         pygame.display.flip()
         self.clock.tick(10)
 
-    def _draw_cell(self, pos: Position, color):
+    def _draw_cell(self, pos: Position, color=None, image=None, outline=False):
         rect = pygame.Rect(
             self.grid_offset_x + pos.x * self.cell_size,
             self.grid_offset_y + pos.y * self.cell_size,
             self.cell_size,
             self.cell_size
         )
-        pygame.draw.rect(self.window_surface, color, rect)
+        if image:
+            self.window_surface.blit(image, rect)
+        elif color:
+            pygame.draw.rect(self.window_surface, color, rect)
+            if outline:
+                pygame.draw.rect(self.window_surface, (0, 0, 0), rect, width=2)
+
 
     def _draw_apple(self, pos: Position):
         rect = pygame.Rect(
