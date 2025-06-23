@@ -20,7 +20,7 @@ class PygameRenderer:
         self.height = height
         self.simulation_started = False
 
-        # Adjust cell size to fully fit grid in window
+        # Adjust cell
         self.cell_size = min(
             WINDOW_WIDTH // self.width,
             WINDOW_HEIGHT // self.height
@@ -28,10 +28,9 @@ class PygameRenderer:
         self.grid_width = self.width * self.cell_size
         self.grid_height = self.height * self.cell_size
 
-        # Offset to center the grid
+        # center the grid
         self.grid_offset_x = (WINDOW_WIDTH - self.grid_width) // 2
         self.grid_offset_y = (WINDOW_HEIGHT - self.grid_height) // 2
-
         self.window_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption("Smart Snake")
         self.clock = pygame.time.Clock()
@@ -60,9 +59,8 @@ class PygameRenderer:
 
 
 
-    def render(self, snake, apple):
+    def render(self, snake, apple, bfs_order=None, bfs_index=0, final_path=None):
         self.window_surface.fill(BG_COLOR)
-        # Draw outer border around entire grid
         outer_border = pygame.Rect(
             self.grid_offset_x,
             self.grid_offset_y,
@@ -71,12 +69,21 @@ class PygameRenderer:
         )
         pygame.draw.rect(self.window_surface, (255, 255, 255), outer_border, width=3)
 
+        # Draw BFS checked cells
+        if bfs_order is not None and bfs_index > 0:
+            for i in range(min(bfs_index, len(bfs_order))):
+                pos = bfs_order[i]
+                self._draw_cell(pos, color=(255, 255, 255))  
 
+        # Draw final path 
+        if final_path is not None and not bfs_order:
+            for pos in final_path:
+                self._draw_cell(pos, color=(255, 0, 0)) 
 
         # Draw apple
         self._draw_apple(apple.position)
 
-        # Draw snake body (excluding head)
+        # Draw snake body
         for segment in snake.body[1:]:
             if self.snake_body_img:
                 self._draw_cell(segment, image=self.snake_body_img)
@@ -85,22 +92,19 @@ class PygameRenderer:
 
         # Draw snake head
         if self.snake_head_img:
-            if len(snake.body) > 1:
-                dx = snake.head.x - snake.body[1].x
-                dy = snake.head.y - snake.body[1].y
+            dx = snake.head.x - snake.body[1].x
+            dy = snake.head.y - snake.body[1].y
 
-                if dx == 1 and dy == 0:
-                    angle = 270   # Right
-                elif dx == -1 and dy == 0:
-                    angle = 90    # Left
-                elif dx == 0 and dy == -1:
-                    angle = 0     # Up
-                elif dx == 0 and dy == 1:
-                    angle = 180   # Down
-                else:
-                    angle = 0     # Fallback
+            if dx == 1 and dy == 0:
+                angle = 270   # Right
+            elif dx == -1 and dy == 0:
+                angle = 90    # Left
+            elif dx == 0 and dy == -1:
+                angle = 0     # Up
+            elif dx == 0 and dy == 1:
+                angle = 180   # Down
             else:
-                angle = 0  # default if only head
+                angle = 0
 
             rotated_head = pygame.transform.rotate(self.snake_head_img, angle)
             self._draw_cell(snake.head, image=rotated_head)

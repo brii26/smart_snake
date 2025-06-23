@@ -19,28 +19,44 @@ class SnakeGame:
         self.alive = True
         self.renderer = PygameRenderer(GRID_HEIGHT, GRID_WIDTH)
         self.current_path = []
+        self.visualizing = False
+        self.visual_index = 0
+        self.waiting_after_eat = False  
+        self.next_apple_pos = None
         self.plan_path_to_apple()
 
     def plan_path_to_apple(self):
         path = self.planner.find_safe_path(self.snake, self.apple.position)
         self.current_path = path if path else []
+        self.visualizing = True
+        self.visual_index = 0
+        self.visual_bfs_order = self.planner.visual_bfs_order.copy()
         if not self.current_path:
             self.alive = False
 
     def step(self):
+        if self.visualizing:
+            self.visual_index += 1
+            if self.visual_index >= len(self.visual_bfs_order):
+                self.visualizing = False
+            return
+        if self.waiting_after_eat:
+            self.apple = Apple(self.next_apple_pos)
+            self.plan_path_to_apple()
+            self.waiting_after_eat = False
+            return
         if not self.current_path:
             self.alive = False
             return
-
         next_move = self.current_path.pop(0)
         self.snake.move_towards(next_move)
-
         if self.snake.head == self.apple.position:
             self.snake.grow()
+            print(f"[DEBUG] Snake body after grow: {self.snake.body}")
             pos = self.find_reachable_apple_position()
             if pos:
-                self.apple = Apple(pos)
-                self.plan_path_to_apple()  # Only re-plan when new apple appears
+                self.next_apple_pos = pos
+                self.waiting_after_eat = True
             else:
                 self.alive = False
 
@@ -52,22 +68,17 @@ class SnakeGame:
             if Position(x, y) not in self.snake.body
         ]
         random.shuffle(candidates)
-
         for pos in candidates:
             test_path = self.planner.find_safe_path(self.snake, pos)
             if test_path:
-                return pos 
-
-        return None 
-
+                return pos
+        return None
 
     def run(self):
         while True:
             if not self.renderer.handle_events():
                 break
-
             if self.renderer.simulation_started and self.alive:
                 self.step()
-
-            self.renderer.render(self.snake, self.apple)
+            self.renderer.render(self.snake, self.apple, self.visual_bfs_order if self.visualizing else [], self.visual_index, self.current_path if not self.visualizing else [])
             time.sleep(0.5)
