@@ -20,6 +20,12 @@ class PygameRenderer:
         self.width = width
         self.height = height
         self.simulation_started = False
+        self.input_active = False
+        self.input_text_w = str(width)
+        self.input_text_h = str(height)
+        self.input_box_w = pygame.Rect(WINDOW_WIDTH // 2 - 80, WINDOW_HEIGHT // 2 - 60, 60, 32)
+        self.input_box_h = pygame.Rect(WINDOW_WIDTH // 2 + 20, WINDOW_HEIGHT // 2 - 60, 60, 32)
+        self.input_selected = None
 
         # Adjust cell
         self.cell_size = min(
@@ -82,7 +88,8 @@ class PygameRenderer:
                 self._draw_cell(pos, color=(255, 0, 0)) 
 
         # Draw apple
-        self._draw_apple(apple.position)
+        if apple is not None:
+            self._draw_apple(apple.position)
 
         # Draw snake body
         for segment in snake.body[1:]:
@@ -117,7 +124,7 @@ class PygameRenderer:
             self._draw_popup_button()
 
         pygame.display.flip()
-        self.clock.tick(10)
+        self.clock.tick(20)
 
     def _draw_cell(self, pos: Position, color=None, image=None, outline=False):
         rect = pygame.Rect(
@@ -147,16 +154,108 @@ class PygameRenderer:
             pygame.draw.rect(self.window_surface, APPLE_COLOR, rect)
 
     def _draw_popup_button(self):
-        pygame.draw.rect(self.window_surface, BUTTON_COLOR, self.button_rect, border_radius=BUTTON_RADIUS)
+        # Draw input boxes for grid size
+        font = self.font
+        # Draw container
+        container_width, container_height = 260, 120
+        container_x = WINDOW_WIDTH // 2 - container_width // 2
+        container_y = WINDOW_HEIGHT // 2 - container_height // 2
+        container_rect = pygame.Rect(container_x, container_y, container_width, container_height)
+        pygame.draw.rect(self.window_surface, (40, 40, 40), container_rect, border_radius=16)
+        pygame.draw.rect(self.window_surface, (255,255,255), container_rect, 2, border_radius=16)
+        # Draw labels and input boxes
+        label_w = font.render("Width:", True, TEXT_COLOR)
+        label_h = font.render("Height:", True, TEXT_COLOR)
+        self.window_surface.blit(label_w, (container_x + 20, container_y + 20))
+        self.window_surface.blit(label_h, (container_x + 20, container_y + 60))
+        # Adjust input boxes to be inside container
+        self.input_box_w.x = container_x + 110
+        self.input_box_w.y = container_y + 15
+        self.input_box_h.x = container_x + 110
+        self.input_box_h.y = container_y + 55
+        # Highlight selected input box
+        w_color = (0, 255, 255) if self.input_selected == 'w' else (255,255,255)
+        h_color = (0, 255, 255) if self.input_selected == 'h' else (255,255,255)
+        pygame.draw.rect(self.window_surface, w_color, self.input_box_w, 3)
+        pygame.draw.rect(self.window_surface, h_color, self.input_box_h, 3)
+        txt_surface_w = font.render(self.input_text_w, True, TEXT_COLOR)
+        txt_surface_h = font.render(self.input_text_h, True, TEXT_COLOR)
+        self.window_surface.blit(txt_surface_w, (self.input_box_w.x + 5, self.input_box_w.y + 5))
+        self.window_surface.blit(txt_surface_h, (self.input_box_h.x + 5, self.input_box_h.y + 5))
+        # Draw simulate button below, with hover effect
+        mouse_pos = pygame.mouse.get_pos()
+        button_color = (100, 100, 255) if self.button_rect.collidepoint(mouse_pos) else BUTTON_COLOR
+        self.button_rect.x = container_x + 30
+        self.button_rect.y = container_y + 90
+        pygame.draw.rect(self.window_surface, button_color, self.button_rect, border_radius=BUTTON_RADIUS)
         label = self.font.render("Start Simulation", True, TEXT_COLOR)
         label_rect = label.get_rect(center=self.button_rect.center)
         self.window_surface.blit(label, label_rect)
+
+    def show_game_over_popup(self, apples_gained, avg_search_time, status_message=None):
+        """Draw a centered game over popup with stats, status message, and a resimulate button."""
+        popup_width, popup_height = 300, 140 if status_message else 100
+        popup_x = WINDOW_WIDTH // 2 - popup_width // 2
+        popup_y = WINDOW_HEIGHT // 2 - popup_height // 2
+        popup_rect = pygame.Rect(popup_x, popup_y, popup_width, popup_height)
+        pygame.draw.rect(self.window_surface, (40, 40, 40), popup_rect, border_radius=16)
+        pygame.draw.rect(self.window_surface, (255, 255, 255), popup_rect, width=2, border_radius=16)
+
+        # Draw stats
+        font = pygame.font.SysFont(None, 28)
+        label1 = font.render(f"Apples: {apples_gained}", True, (255,255,255))
+        label2 = font.render(f"Avg Search: {avg_search_time:.0f} ms", True, (255,255,255))
+        self.window_surface.blit(label1, (popup_x + 20, popup_y + 15))
+        self.window_surface.blit(label2, (popup_x + 20, popup_y + 45))
+        if status_message:
+            label3 = font.render(status_message, True, (255, 100, 100))
+            self.window_surface.blit(label3, (popup_x + 20, popup_y + 75))
+
+        # Draw resimulate button with hover effect
+        mouse_pos = pygame.mouse.get_pos()
+        button_rect = pygame.Rect(popup_x + 75, popup_y + (popup_height - 34), 150, 24)
+        button_color = (100, 100, 255) if button_rect.collidepoint(mouse_pos) else BUTTON_COLOR
+        pygame.draw.rect(self.window_surface, button_color, button_rect, border_radius=8)
+        button_label = font.render("Re-Simulate", True, TEXT_COLOR)
+        button_label_rect = button_label.get_rect(center=button_rect.center)
+        self.window_surface.blit(button_label, button_label_rect)
+        self.resim_button_rect = button_rect
+        pygame.display.flip()
 
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if self.button_rect.collidepoint(event.pos):
-                    self.simulation_started = True
+            if not self.simulation_started:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if self.input_box_w.collidepoint(event.pos):
+                        self.input_selected = 'w'
+                    elif self.input_box_h.collidepoint(event.pos):
+                        self.input_selected = 'h'
+                    else:
+                        self.input_selected = None
+                    if self.button_rect.collidepoint(event.pos):
+                        self.simulation_started = True
+                        return ('start', int(self.input_text_w), int(self.input_text_h))
+                if event.type == pygame.KEYDOWN and self.input_selected:
+                    if event.key == pygame.K_BACKSPACE:
+                        if self.input_selected == 'w':
+                            self.input_text_w = self.input_text_w[:-1]
+                        elif self.input_selected == 'h':
+                            self.input_text_h = self.input_text_h[:-1]
+                    elif event.unicode.isdigit():
+                        if self.input_selected == 'w' and len(self.input_text_w) < 3:
+                            if self.input_text_w == '0':
+                                self.input_text_w = event.unicode
+                            else:
+                                self.input_text_w += event.unicode
+                        elif self.input_selected == 'h' and len(self.input_text_h) < 3:
+                            if self.input_text_h == '0':
+                                self.input_text_h = event.unicode
+                            else:
+                                self.input_text_h += event.unicode
+            else:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if hasattr(self, 'resim_button_rect') and self.resim_button_rect.collidepoint(event.pos):
+                        return 'resimulate'
         return True

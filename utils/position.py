@@ -6,7 +6,7 @@ class Position:
     y: int
 
     def neighbors(self):
-        """Return a list of adjacent positions (up, down, left, right)."""
+        """Return a list of adjacent positions (up, down, left, right)"""
         return [
             Position(self.x + 1, self.y),
             Position(self.x - 1, self.y),
