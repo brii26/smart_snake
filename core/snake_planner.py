@@ -5,12 +5,14 @@ from collections import deque
 
 class SnakePlanner:
     def __init__(self, grid):
+        """Initialize the snake planner with the given grid."""
         self.grid = grid
         self.pathfinder = Pathfinder(grid)
         self.memo = set()
         self.visual_bfs_order = [] 
 
     def find_safe_path(self, snake, apple: Position):
+        """Find a safe path from the snake to the apple using BFS."""
         visited = set()
         queue = deque()
         fallback_path = None
@@ -55,6 +57,7 @@ class SnakePlanner:
         return None
 
     def tail_reachable(self, snake):
+        """Check if the snake's tail is reachable."""
         if len(snake.body) <= 2:
             return True
 

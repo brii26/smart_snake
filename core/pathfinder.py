@@ -2,9 +2,11 @@ from utils.position import Position
 
 class Pathfinder:
     def __init__(self, grid):
+        """Initialize the pathfinder with the given grid."""
         self.grid = grid
 
     def bnb_path(self, start: Position, goal: Position, body: list[Position]) -> list[Position] | None:
+        """Find a path from start to goal using branch-and-bound DFS."""
         occupied = set(body[:-1])  # body excluding tail
         visited = set()
         path = []

@@ -12,6 +12,7 @@ GRID_WIDTH = 5
 
 class SnakeGame:
     def __init__(self):
+        """Initialize the main game state and components."""
         self.grid = Grid(GRID_HEIGHT, GRID_WIDTH)
         self.snake = Snake(self.grid.center_position())
         self.apple = Apple(self.grid.random_empty_position(self.snake))
@@ -26,6 +27,7 @@ class SnakeGame:
         self.plan_path_to_apple()
 
     def plan_path_to_apple(self):
+        """Plan a path from the snake to the apple using the planner."""
         path = self.planner.find_safe_path(self.snake, self.apple.position)
         self.current_path = path if path else []
         self.visualizing = True
@@ -35,6 +37,7 @@ class SnakeGame:
             self.alive = False
 
     def step(self):
+        """Advance the game by one step, handling movement and visualization."""
         if self.visualizing:
             self.visual_index += 1
             if self.visual_index >= len(self.visual_bfs_order):
@@ -51,8 +54,11 @@ class SnakeGame:
         next_move = self.current_path.pop(0)
         self.snake.move_towards(next_move)
         if self.snake.head == self.apple.position:
-            self.snake.grow()
-            print(f"[DEBUG] Snake body after grow: {self.snake.body}")
+            # If this is the first apple eaten (snake length 1), set direction to the last move just made
+            if len(self.snake.body) == 1:
+                self.snake.grow(direction=self.snake.last_direction)
+            else:
+                self.snake.grow()
             pos = self.find_reachable_apple_position()
             if pos:
                 self.next_apple_pos = pos
@@ -61,6 +67,7 @@ class SnakeGame:
                 self.alive = False
 
     def find_reachable_apple_position(self):
+        """Find a reachable position for the apple that is not occupied by the snake."""
         candidates = [
             Position(x, y)
             for x in range(self.grid.width)
@@ -75,10 +82,10 @@ class SnakeGame:
         return None
 
     def run(self):
+        """Run the main game loop until the game is over or exited."""
         while True:
             if not self.renderer.handle_events():
                 break
             if self.renderer.simulation_started and self.alive:
                 self.step()
             self.renderer.render(self.snake, self.apple, self.visual_bfs_order if self.visualizing else [], self.visual_index, self.current_path if not self.visualizing else [])
-            time.sleep(0.5)

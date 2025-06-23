@@ -8,6 +8,7 @@ class State:
     apple: Position
 
     def is_valid(self, grid, ignore_tail=False) -> bool:
+        """Check if the state is valid (no collision and inside grid)."""
         # Check head inside grid
         if not grid.is_inside(self.head):
             return False

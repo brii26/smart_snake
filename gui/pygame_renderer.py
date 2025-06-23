@@ -15,6 +15,7 @@ WINDOW_HEIGHT = 700
 
 class PygameRenderer:
     def __init__(self, width, height):
+        """Initialize the Pygame renderer and window."""
         pygame.init()
         self.width = width
         self.height = height
@@ -90,7 +91,7 @@ class PygameRenderer:
             else:
                 self._draw_cell(segment, color=SNAKE_COLOR, outline=True)
 
-        # Draw snake head
+        # Rotation
         if self.snake_head_img:
             dx = snake.head.x - snake.body[1].x
             dy = snake.head.y - snake.body[1].y
