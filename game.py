@@ -18,14 +18,21 @@ class SnakeGame:
         self.planner = SnakePlanner(self.grid)
         self.alive = True
         self.renderer = PygameRenderer(GRID_HEIGHT, GRID_WIDTH)
+        self.current_path = []
+        self.plan_path_to_apple()
+
+    def plan_path_to_apple(self):
+        path = self.planner.find_safe_path(self.snake, self.apple.position)
+        self.current_path = path if path else []
+        if not self.current_path:
+            self.alive = False
 
     def step(self):
-        path = self.planner.find_safe_path(self.snake, self.apple.position)
-        if not path:
+        if not self.current_path:
             self.alive = False
             return
 
-        next_move = path[0]
+        next_move = self.current_path.pop(0)
         self.snake.move_towards(next_move)
 
         if self.snake.head == self.apple.position:
@@ -33,6 +40,7 @@ class SnakeGame:
             pos = self.find_reachable_apple_position()
             if pos:
                 self.apple = Apple(pos)
+                self.plan_path_to_apple()  # Only re-plan when new apple appears
             else:
                 self.alive = False
 
@@ -62,4 +70,4 @@ class SnakeGame:
                 self.step()
 
             self.renderer.render(self.snake, self.apple)
-            time.sleep(0.001)
+            time.sleep(0.5)
