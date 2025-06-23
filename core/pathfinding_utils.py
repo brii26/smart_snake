@@ -1,42 +1,31 @@
-from utils.position import Position
+from core.state import State
 import heapq
 import itertools
 
-class Pathfinder:
+class PathfindingUtils:
     def __init__(self, grid):
         self.grid = grid
         self._tail_reach_cache = {}
 
-    def bnb_path(self, start: Position, goal: Position, body: list[Position]) -> list[Position] | None:
-        """Check if the tail is reachable (safe state)"""
-        occupied = set(body[:-1])
-        visited = set()
+    def tail_reachable(self, snake, bnb_path_func):
+        """Check if snake's tail is reachable from its head using bnb_path_func"""
+        if len(snake.body) <= 2:
+            return True
+        state = State(snake.head, tuple(snake.body), snake.body[-1])
+        if state in self._tail_reach_cache:
+            return self._tail_reach_cache[state]
+        path = bnb_path_func(snake.head, snake.body[-1], snake.body[:-1])
+        result = bool(path)
+        self._tail_reach_cache[state] = result
+        return result
 
-        def dfs(current, current_path):
-            if current == goal:
-                return current_path[:]
-
-            visited.add(current)
-
-            for next_pos in current.neighbors():
-                if (not self.grid.is_inside(next_pos) or
-                    next_pos in occupied or
-                    next_pos in visited):
-                    continue
-
-                result = dfs(next_pos, current_path + [next_pos])
-                if result:
-                    return result
-
-            return None
-
-        return dfs(start, [])
-
-    def astar_path(self, snake, apple: Position):
-        """find a path from the snake's head to the apple. Returns path and visited nodes"""
+    def astar_generator(self, snake, apple, batch_size=1):
+        """A* generator for real-time visualization. Yields after each batch of node expansions."""
         visited = set()
         visited_heads = set()
         heap = []
+        batch_count = 0
+        total_expanded = 0
         counter = itertools.count()
         def heuristic(pos):
             return abs(pos.x - apple.x) + abs(pos.y - apple.y)
@@ -56,7 +45,8 @@ class Pathfinder:
                 new_snake = current_snake.copy()
                 new_snake.grow()
                 found_path = path
-                return found_path, set(visited_heads)
+                yield (set(visited_heads), list(path), found_path)
+                return
             for next_pos in head.neighbors():
                 if not self.grid.is_inside(next_pos):
                     continue
@@ -70,4 +60,10 @@ class Pathfinder:
                     continue
                 h = heuristic(new_snake.head)
                 heapq.heappush(heap, (g_score + 1 + h, next(counter), g_score + 1, new_snake, new_path))
-        return None, set()
+            batch_count += 1
+            total_expanded += 1
+            dynamic_batch_size = min(1.15**100, max(1, 1 * 1.15**min(100,total_expanded) // 100))
+            if batch_count >= dynamic_batch_size:
+                yield (set(visited_heads), list(path), found_path)
+                batch_count = 0
+        yield (set(visited_heads), [], found_path)

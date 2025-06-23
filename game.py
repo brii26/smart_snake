@@ -4,17 +4,20 @@ from snake import Snake
 from apple import Apple
 import random
 from grid import Grid
-from core.snake_planner import SnakePlanner
+from core.pathfinder import Pathfinder
+from core.pathfinding_utils import PathfindingUtils
 from gui.pygame_renderer import PygameRenderer
 
+
 class SnakeGame:
-    def __init__(self, grid_width=5, grid_height=5):
+    def __init__(self, grid_width=7, grid_height=7, visualize=True):
         self.grid = Grid(grid_height, grid_width)
         self.snake = Snake(self.grid.center_position())
         self.apples_gained = 0
         self.available_cells = set()
         self.apple = None
-        self.planner = SnakePlanner(self.grid)
+        self.pathfinder = Pathfinder(self.grid)
+        self.utils = PathfindingUtils(self.grid)
         self.alive = True
         self.renderer = PygameRenderer(grid_height, grid_width)
         self.current_path = []
@@ -24,6 +27,9 @@ class SnakeGame:
         self.next_apple_pos = None
         self.status_message = ""
         self.bfs_times = []
+        self.show_final_path = False
+        self.final_path_to_show = []
+        self.visualize = visualize
 
     def _random_available_cell(self):
         cells = list(self.available_cells)
@@ -32,14 +38,27 @@ class SnakeGame:
         return random.choice(cells)
 
     def plan_path_to_apple(self):
-        start_time = time.time()
-        path = self.planner.find_safe_path(self.snake, self.apple.position)
-        bfs_time = (time.time() - start_time) * 1000
-        self.bfs_times.append(bfs_time)
-        self.current_path = path if path else []
-        self.visualizing = True
-        self.visual_index = 0
-        self.visual_bfs_order = self.planner.visual_bfs_order.copy()
+        if self.visualize:
+            self.astar_gen = self.utils.astar_generator(
+                self.snake, self.apple.position, batch_size=1
+            )
+            self.bfs_visited = set()
+            self.bfs_found_path = None
+            self.visualizing = True
+            self.visual_bfs_order = []
+            self.bfs_new_cells = []
+            self.current_path = []
+        else:
+            start = time.perf_counter()
+            path, _ = self.pathfinder.astar_path(self.snake, self.apple.position)
+            elapsed = (time.perf_counter() - start) * 1000
+            self.bfs_times.append(elapsed)
+            self.current_path = path if path else []
+            self.visualizing = False
+            self.bfs_visited = set()
+            self.bfs_found_path = None
+            self.visual_bfs_order = []
+            self.bfs_new_cells = []
 
     def _available_cells_after_path(self, path):
         sim_snake = self.snake.copy()
@@ -67,23 +86,38 @@ class SnakeGame:
 
     def step(self):
         if self.visualizing:
-            self.visual_index += 1
-            if self.visual_index >= len(self.visual_bfs_order):
+            try:
+                visited, current_path, found_path = next(self.astar_gen)
+                new_cells = set(visited) - self.bfs_visited
+                self.bfs_visited |= new_cells
+                self.visual_bfs_order = list(self.bfs_visited)
+                self.bfs_new_cells = list(new_cells)
+                if found_path is not None:
+                    self.current_path = found_path
+                    self.visualizing = False
+                    self.show_final_path = True
+                    self.final_path_to_show = list(found_path)
+            except StopIteration:
                 self.visualizing = False
+                self.bfs_new_cells = []
+            return
+        if self.show_final_path:
+            self.bfs_visited = set()
+            self.show_final_path = False
             return
         if self.waiting_after_eat:
             self.available_cells = self._available_cells_after_path(self.current_path)
             self.apple = Apple(self.next_apple_pos)
             if not self.available_cells:
                 self.apples_gained += 1
-                self.renderer.render(self.snake, self.apple, [], 0, [])
+                self.renderer.render(self.snake, self.apple, [], [])
                 self.alive = False
                 self.status_message = "All cells filled!"
                 self.waiting_after_eat = False
                 return
             else:
                 self.apples_gained += 1
-                self.renderer.render(self.snake, self.apple, [], 0, [])
+                self.renderer.render(self.snake, self.apple, [], [])
                 self.plan_path_to_apple()
                 self.waiting_after_eat = False
                 return
@@ -138,9 +172,9 @@ class SnakeGame:
             if event is False:
                 break
             if first_run:
-                if isinstance(event, tuple) and event[0] == 'start':
-                    _, w, h = event
-                    self.__init__(w, h)
+                if isinstance(event, tuple) and event[0] == "start":
+                    _, w, h, algoview = event if len(event) == 4 else (*event, True)
+                    self.__init__(w, h, visualize=algoview)
                     self.available_cells = set(
                         Position(x, y)
                         for x in range(self.grid.width)
@@ -153,20 +187,48 @@ class SnakeGame:
                     self.renderer.simulation_started = True
                 else:
                     if self.apple is not None:
-                        self.renderer.render(self.snake, self.apple, self.visual_bfs_order if self.visualizing else [], self.visual_index, self.current_path if not self.visualizing else [])
+                        self.renderer.render(
+                            self.snake,
+                            self.apple,
+                            visited_cells=getattr(self, "bfs_visited", set()),
+                            final_path=self.current_path if not self.visualizing else [],
+                        )
                     else:
-                        self.renderer.render(self.snake, None, [], 0, [])
+                        self.renderer.render(self.snake, None, visited_cells=set(), final_path=[])
                     continue
             if self.renderer.simulation_started and self.alive:
                 self.step()
-            self.renderer.render(self.snake, self.apple, self.visual_bfs_order if self.visualizing else [], self.visual_index, self.current_path if not self.visualizing else [])
+            if self.visualize and self.show_final_path:
+                self.renderer.render(
+                    self.snake,
+                    self.apple,
+                    visited_cells=set(),
+                    final_path=self.final_path_to_show,
+                )
+            elif self.visualize:
+                self.renderer.render(
+                    self.snake,
+                    self.apple,
+                    visited_cells=getattr(self, "bfs_visited", set()),
+                    final_path=self.current_path if not self.visualizing else [],
+                )
+            else:
+                self.renderer.render(
+                    self.snake,
+                    self.apple,
+                    visited_cells=set(),
+                    final_path=[],
+                )
+            self.bfs_new_cells = []
             if not self.alive:
-                bfs_times = getattr(self, 'bfs_times', [])
+                bfs_times = getattr(self, "bfs_times", [])
                 avg_search = sum(bfs_times) / len(bfs_times) if bfs_times else 0
-                self.renderer.show_game_over_popup(self.apples_gained, avg_search, getattr(self, 'status_message', None))
+                self.renderer.show_game_over_popup(
+                    self.apples_gained, avg_search, getattr(self, "status_message", None)
+                )
                 while True:
                     event = self.renderer.handle_events()
-                    if event == 'resimulate':
+                    if event == "resimulate":
                         self.__init__()
                         first_run = True
                         break

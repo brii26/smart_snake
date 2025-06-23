@@ -1,4 +1,3 @@
-# gui/pygame_renderer.py
 import pygame
 from utils.position import Position
 
@@ -15,7 +14,7 @@ WINDOW_HEIGHT = 700
 
 class PygameRenderer:
     def __init__(self, width, height):
-        """Initialize the Pygame renderer and window."""
+        """Initialize Pygame renderer and window."""
         pygame.init()
         self.width = width
         self.height = height
@@ -26,30 +25,21 @@ class PygameRenderer:
         self.input_box_w = pygame.Rect(WINDOW_WIDTH // 2 - 80, WINDOW_HEIGHT // 2 - 60, 60, 32)
         self.input_box_h = pygame.Rect(WINDOW_WIDTH // 2 + 20, WINDOW_HEIGHT // 2 - 60, 60, 32)
         self.input_selected = None
-
-        # Adjust cell
-        self.cell_size = min(
-            WINDOW_WIDTH // self.width,
-            WINDOW_HEIGHT // self.height
-        )
+        self.cell_size = min(WINDOW_WIDTH // self.width, WINDOW_HEIGHT // self.height)
         self.grid_width = self.width * self.cell_size
         self.grid_height = self.height * self.cell_size
-
-        # center the grid
         self.grid_offset_x = (WINDOW_WIDTH - self.grid_width) // 2
         self.grid_offset_y = (WINDOW_HEIGHT - self.grid_height) // 2
         self.window_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption("Smart Snake")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont(None, 32)
-
-        # Button rect (centered popup)
         button_width, button_height = 200, 60
         center_x = WINDOW_WIDTH // 2 - button_width // 2
         center_y = WINDOW_HEIGHT // 2 - button_height // 2
         self.button_rect = pygame.Rect(center_x, center_y, button_width, button_height)
-
-        # Load image assets
+        self.algoview_checked = True
+        self.algoview_box = pygame.Rect(center_x, center_y - 60, 28, 28)
         try:
             self.apple_img = pygame.image.load("assets/apple.png").convert_alpha()
             self.apple_img = pygame.transform.scale(self.apple_img, (self.cell_size, self.cell_size))
@@ -64,10 +54,9 @@ class PygameRenderer:
             self.snake_body_img = None
             self.snake_head_img = None
 
-
-
-    def render(self, snake, apple, bfs_order=None, bfs_index=0, final_path=None):
+    def render(self, snake, apple, visited_cells=None, new_visited=None, final_path=None):
         self.window_surface.fill(BG_COLOR)
+        # Draw border
         outer_border = pygame.Rect(
             self.grid_offset_x,
             self.grid_offset_y,
@@ -75,34 +64,27 @@ class PygameRenderer:
             self.grid_height
         )
         pygame.draw.rect(self.window_surface, (255, 255, 255), outer_border, width=3)
-
-        # Draw BFS checked cells
-        if bfs_order is not None and bfs_index > 0:
-            for i in range(min(bfs_index, len(bfs_order))):
-                pos = bfs_order[i]
-                self._draw_cell(pos, color=(255, 255, 255))  
-
+        # Draw all visited cells 
+        if visited_cells:
+            for pos in visited_cells:
+                self._draw_cell(pos, color=(255, 255, 255))
         # Draw final path 
-        if final_path is not None and not bfs_order:
+        if final_path:
             for pos in final_path:
-                self._draw_cell(pos, color=(255, 0, 0)) 
-
+                self._draw_cell(pos, color=(255, 255, 0)) 
         # Draw apple
         if apple is not None:
             self._draw_apple(apple.position)
-
         # Draw snake body
         for segment in snake.body[1:]:
             if self.snake_body_img:
                 self._draw_cell(segment, image=self.snake_body_img)
             else:
                 self._draw_cell(segment, color=SNAKE_COLOR, outline=True)
-
-        # Rotation
-        if self.snake_head_img:
+        # Draw snake head
+        if self.snake_head_img and len(snake.body) > 1:
             dx = snake.head.x - snake.body[1].x
             dy = snake.head.y - snake.body[1].y
-
             if dx == 1 and dy == 0:
                 angle = 270   # Right
             elif dx == -1 and dy == 0:
@@ -113,16 +95,13 @@ class PygameRenderer:
                 angle = 180   # Down
             else:
                 angle = 0
-
             rotated_head = pygame.transform.rotate(self.snake_head_img, angle)
             self._draw_cell(snake.head, image=rotated_head)
         else:
             self._draw_cell(snake.head, color=HEAD_COLOR)
-
-        # Button (only before start)
+        # Button
         if not self.simulation_started:
             self._draw_popup_button()
-
         pygame.display.flip()
         self.clock.tick(20)
 
@@ -168,7 +147,7 @@ class PygameRenderer:
         label_h = font.render("Height:", True, TEXT_COLOR)
         self.window_surface.blit(label_w, (container_x + 20, container_y + 20))
         self.window_surface.blit(label_h, (container_x + 20, container_y + 60))
-        # Adjust input boxes to be inside container
+        # Adjust input boxes 
         self.input_box_w.x = container_x + 110
         self.input_box_w.y = container_y + 15
         self.input_box_h.x = container_x + 110
@@ -182,7 +161,13 @@ class PygameRenderer:
         txt_surface_h = font.render(self.input_text_h, True, TEXT_COLOR)
         self.window_surface.blit(txt_surface_w, (self.input_box_w.x + 5, self.input_box_w.y + 5))
         self.window_surface.blit(txt_surface_h, (self.input_box_h.x + 5, self.input_box_h.y + 5))
-        # Draw simulate button below, with hover effect
+        # Draw algorithm view checkbox
+        pygame.draw.rect(self.window_surface, (255,255,255), self.algoview_box, 2, border_radius=4)
+        if self.algoview_checked:
+            pygame.draw.rect(self.window_surface, (255,255,0), self.algoview_box.inflate(-6, -6), border_radius=2)
+        algolabel = font.render("Algorithm View", True, TEXT_COLOR)
+        self.window_surface.blit(algolabel, (self.algoview_box.right + 10, self.algoview_box.y))
+        # Draw simulate button
         mouse_pos = pygame.mouse.get_pos()
         button_color = (100, 100, 255) if self.button_rect.collidepoint(mouse_pos) else BUTTON_COLOR
         self.button_rect.x = container_x + 30
@@ -193,25 +178,23 @@ class PygameRenderer:
         self.window_surface.blit(label, label_rect)
 
     def show_game_over_popup(self, apples_gained, avg_search_time, status_message=None):
-        """Draw a centered game over popup with stats, status message, and a resimulate button."""
+        """Draw game over popup (stats, status message, resimulate button)"""
         popup_width, popup_height = 300, 140 if status_message else 100
         popup_x = WINDOW_WIDTH // 2 - popup_width // 2
         popup_y = WINDOW_HEIGHT // 2 - popup_height // 2
         popup_rect = pygame.Rect(popup_x, popup_y, popup_width, popup_height)
         pygame.draw.rect(self.window_surface, (40, 40, 40), popup_rect, border_radius=16)
         pygame.draw.rect(self.window_surface, (255, 255, 255), popup_rect, width=2, border_radius=16)
-
         # Draw stats
         font = pygame.font.SysFont(None, 28)
         label1 = font.render(f"Apples: {apples_gained}", True, (255,255,255))
-        label2 = font.render(f"Avg Search: {avg_search_time:.0f} ms", True, (255,255,255))
+        label2 = font.render(f"Avg Search: {avg_search_time:.3f} ms", True, (255,255,255))
         self.window_surface.blit(label1, (popup_x + 20, popup_y + 15))
         self.window_surface.blit(label2, (popup_x + 20, popup_y + 45))
         if status_message:
-            label3 = font.render(status_message, True, (255, 100, 100))
+            label3 = font.render(status_message, True, (255,100,100))
             self.window_surface.blit(label3, (popup_x + 20, popup_y + 75))
-
-        # Draw resimulate button with hover effect
+        # Draw resimulate button 
         mouse_pos = pygame.mouse.get_pos()
         button_rect = pygame.Rect(popup_x + 75, popup_y + (popup_height - 34), 150, 24)
         button_color = (100, 100, 255) if button_rect.collidepoint(mouse_pos) else BUTTON_COLOR
@@ -221,6 +204,19 @@ class PygameRenderer:
         self.window_surface.blit(button_label, button_label_rect)
         self.resim_button_rect = button_rect
         pygame.display.flip()
+
+    def show_invalid_popup(self, message="Invalid grid size!"):
+        popup_width, popup_height = 260, 80
+        popup_x = WINDOW_WIDTH // 2 - popup_width // 2
+        popup_y = WINDOW_HEIGHT // 2 - popup_height // 2
+        popup_rect = pygame.Rect(popup_x, popup_y, popup_width, popup_height)
+        pygame.draw.rect(self.window_surface, (40, 40, 40), popup_rect, border_radius=16)
+        pygame.draw.rect(self.window_surface, (255, 100, 100), popup_rect, width=2, border_radius=16)
+        font = pygame.font.SysFont(None, 28)
+        label = font.render(message, True, (255, 100, 100))
+        self.window_surface.blit(label, (popup_x + 20, popup_y + 25))
+        pygame.display.flip()
+        pygame.time.wait(1200)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -232,11 +228,18 @@ class PygameRenderer:
                         self.input_selected = 'w'
                     elif self.input_box_h.collidepoint(event.pos):
                         self.input_selected = 'h'
+                    elif self.algoview_box.collidepoint(event.pos):
+                        self.algoview_checked = not self.algoview_checked
                     else:
                         self.input_selected = None
                     if self.button_rect.collidepoint(event.pos):
+                        w = int(self.input_text_w)
+                        h = int(self.input_text_h)
+                        if (w, h) in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+                            self.show_invalid_popup()
+                            return True
                         self.simulation_started = True
-                        return ('start', int(self.input_text_w), int(self.input_text_h))
+                        return ('start', w, h, self.algoview_checked)
                 if event.type == pygame.KEYDOWN and self.input_selected:
                     if event.key == pygame.K_BACKSPACE:
                         if self.input_selected == 'w':
